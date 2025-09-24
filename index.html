@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مركز سرعة انجاز - نظام مراقبة الواتساب</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #007bff;
+            --success: #28a745;
+            --warning: #ffc107;
+            --danger: #dc3545;
+            --purple: #6f42c1;
+        }
+        
+        body {
+            font-family: 'Tahoma', 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .main-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin: 20px auto;
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 20px;
+            border-radius: 15px 15px 0 0;
+        }
+        
+        .user-card {
+            background: white;
+            border-radius: 15px;
+            padding: 15px;
+            margin: 10px 0;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+            border-left: 4px solid var(--primary);
+        }
+        
+        .user-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .user-card.active {
+            border-left-color: var(--success);
+            background: #f8fff9;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 5px;
+        }
+        
+        .status-connected { background: var(--success); }
+        .status-disconnected { background: var(--danger); }
+        .status-waiting { background: var(--warning); }
+        
+        .qr-container {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .alert-card {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            animation: slideIn 0.5s ease;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .log-container {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        
+        .message-bubble {
+            background: #e3f2fd;
+            border-radius: 15px;
+            padding: 10px 15px;
+            margin: 5px 0;
+            max-width: 80%;
+        }
+        
+        .message-bubble.own {
+            background: #dcf8c6;
+            margin-right: auto;
+            margin-left: 0;
+        }
+        
+        .nav-tabs .nav-link.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 10px 10px 0 0;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 25px;
+            padding: 10px 25px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <div class="main-container">
+            <!-- Header -->
+            <div class="header text-center">
+                <h1 class="mb-3">
+                    <i class="fas fa-graduation-cap"></i>
+                    مركز سرعة انجاز 📚للخدمات الطلابية والاكاديمية
+                </h1>
+                <p class="mb-0">نظام المراقبة الذكية والإرسال الآلي للواتساب</p>
+            </div>
+
+            <div class="row m-0">
+                <!-- Sidebar - Users -->
+                <div class="col-md-3 p-4 border-left">
+                    <h4 class="mb-4">
+                        <i class="fas fa-users"></i>
+                        إدارة المستخدمين
+                    </h4>
+                    
+                    {% for user_id, user in predefined_users.items() %}
+                    <div class="user-card {% if session.get('user_id') == user_id %}active{% endif %}" 
+                         onclick="switchUser('{{ user_id }}')"
+                         style="border-left-color: {{ user.color }}; cursor: pointer;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="{{ user.icon }} me-2" style="color: {{ user.color }}"></i>
+                                <strong>{{ user.name }}</strong>
+                            </div>
+                            <span class="status-indicator status-disconnected" id="status-{{ user_id }}"></span>
+                        </div>
+                        <div class="mt-2 text-muted small" id="user-info-{{ user_id }}">
+                            غير متصل
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Main Content -->
+                <div class="col-md-9 p-4">
+                    <!-- Connection Status -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h4>
+                                    <i class="fas fa-plug"></i>
+                                    حالة الاتصال
+                                </h4>
+                                <div id="connection-buttons">
+                                    <button class="btn btn-success me-2" onclick="connectWhatsApp()">
+                                        <i class="fas fa-link"></i> ربط واتساب
+                                    </button>
+                                    <button class="btn btn-danger" onclick="disconnectWhatsApp()" disabled id="disconnect-btn">
+                                        <i class="fas fa-unlink"></i> قطع الاتصال
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div id="connection-status" class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                غير متصل - يرجى ربط واتساب
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- QR Code Section -->
+                    <div class="row mb-4 d-none" id="qr-section">
+                        <div class="col-12">
+                            <div class="qr-container">
+                                <h5>
+                                    <i class="fas fa-qrcode"></i>
+                                    مسح QR Code
+                                </h5>
+                                <p class="text-muted">افتح تطبيق واتساب على هاتفك → الإعدادات → الأجهزة المرتبطة → ربط جهاز</p>
+                                <div id="qr-code-image" class="my-3"></div>
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i>
+                                    <span id="qr-message">جاري تحضير QR Code...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabs -->
+                    <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" id="monitoring-tab" data-bs-toggle="tab" href="#monitoring">
+                                <i class="fas fa-search"></i> المراقبة
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="sending-tab" data-bs-toggle="tab" href="#sending">
+                                <i class="fas fa-paper-plane"></i> الإرسال
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="alerts-tab" data-bs-toggle="tab" href="#alerts">
+                                <i class="fas fa-bell"></i> التنبيهات
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="logs-tab" data-bs-toggle="tab" href="#logs">
+                                <i class="fas fa-terminal"></i> السجلات
+                            </a>
+                        </li>
+                    </ul>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content p-3 border border-top-0 rounded-bottom">
+                        <!-- Monitoring Tab -->
+                        <div class="tab-pane fade show active" id="monitoring">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h5>
+                                        <i class="fas fa-keywords"></i>
+                                        الكلمات المفتاحية للمراقبة
+                                    </h5>
+                                    <div class="mb-3">
+                                        <textarea class="form-control" id="keywords-input" rows="6" 
+                                                  placeholder="أدخل الكلمات المفتاحية للمراقبة (كل كلمة في سطر)"></textarea>
+                                    </div>
+                                    <button class="btn btn-primary" onclick="updateKeywords()">
+                                        <i class="fas fa-save"></i> حفظ الكلمات
+                                    </button>
+                                </div>
+                                <div class="col-md-6">
+                                    <h5>
+                                        <i class="fas fa-info-circle"></i>
+                                        معلومات المراقبة
+                                    </h5>
+                                    <div class="alert alert-info">
+                                        <p><strong>مميزات النظام:</strong></p>
+                                        <ul class="mb-0">
+                                            <li>مراقبة جميع الرسائل الواردة تلقائياً</li>
+                                            <li>تنبيه فوري عند اكتشاف الكلمات المفتاحية</li>
+                                            <li>عمل مستمر في الخلفية</li>
+                                            <li>دعم متعدد المستخدمين</li>
+                                        </ul>
+                                    </div>
+                                    <div id="monitoring-stats" class="small text-muted">
+                                        لم تبدأ المراقبة بعد
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sending Tab -->
+                        <div class="tab-pane fade" id="sending">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h5>
+                                        <i class="fas fa-comment"></i>
+                                        إرسال رسالة
+                                    </h5>
+                                    <div class="mb-3">
+                                        <label class="form-label">رقم الهاتف أو المجموعة</label>
+                                        <input type="text" class="form-control" id="phone-number" 
+                                               placeholder="مثال: +966500000000 أو رقم المجموعة">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">الرسالة</label>
+                                        <textarea class="form-control" id="message-text" rows="4" 
+                                                  placeholder="اكتب الرسالة هنا..."></textarea>
+                                    </div>
+                                    <button class="btn btn-success" onclick="sendMessage()">
+                                        <i class="fas fa-paper-plane"></i> إرسال الرسالة
+                                    </button>
+                                </div>
+                                <div class="col-md-6">
+                                    <h5>
+                                        <i class="fas fa-history"></i>
+                                        آخر الرسائل المرسلة
+                                    </h5>
+                                    <div id="sent-messages" class="log-container">
+                                        <!-- سيتم ملؤها بالرسائل المرسلة -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Alerts Tab -->
+                        <div class="tab-pane fade" id="alerts">
+                            <h5>
+                                <i class="fas fa-bell"></i>
+                                التنبيهات الفورية
+                            </h5>
+                            <div id="alerts-container">
+                                <div class="alert alert-info text-center">
+                                    لا توجد تنبيهات حالياً
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Logs Tab -->
+                        <div class="tab-pane fade" id="logs">
+                            <h5>
+                                <i class="fas fa-list"></i>
+                                سجلات النظام
+                            </h5>
+                            <div class="log-container" id="system-logs">
+                                <div class="text-muted text-center mt-5">
+                                    جاري الاتصال بالخادم...
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <button class="btn btn-sm btn-outline-secondary" onclick="clearLogs()">
+                                    <i class="fas fa-trash"></i> مسح السجلات
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    
+    <script>
+        const socket = io();
+        let currentUser = 'user_1';
+
+        socket.on('connect', function() {
+            addLog('🔗 تم الاتصال بالخادم بنجاح');
+            updateConnectionStatus('connecting', 'جاري التهيئة...');
+        });
+
+        socket.on('log_update', function(data) {
+            addLog(data.message);
+        });
+
+        socket.on('connection_status', function(data) {
+            updateConnectionStatus(data.status, data.message);
+        });
+
+        socket.on('qr_code_received', function(data) {
+            document.getElementById('qr-section').classList.remove('d-none');
+            document.getElementById('qr-code-image').innerHTML = 
+                `<img src="${data.qr_code}" class="img-fluid" style="max-width: 300px;">`;
+            document.getElementById('qr-message').textContent = data.message;
+            addLog('📱 تم إنشاء QR Code - يرجى المسح الضوئي');
+        });
+
+        socket.on('new_alert', function(data) {
+            showAlert(data);
+        });
+
+        socket.on('message_sent', function(data) {
+            addSentMessage(data);
+        });
+
+        function switchUser(userId) {
+            currentUser = userId;
+            window.location.href = `/?user_id=${userId}`;
+        }
+
+        function connectWhatsApp() {
+            addLog('🔗 بدء عملية ربط واتساب...');
+            socket.emit('start_whatsapp_connection');
+        }
+
+        function disconnectWhatsApp() {
+            if (confirm('هل تريد قطع الاتصال مع واتساب؟')) {
+                socket.emit('disconnect_whatsapp');
+                addLog('⏹️ جاري قطع الاتصال...');
+            }
+        }
+
+        function updateKeywords() {
+            const keywordsText = document.getElementById('keywords-input').value;
+            const keywords = keywordsText.split('\n').filter(k => k.trim());
+            socket.emit('update_monitoring_keywords', { keywords: keywords });
+            addLog('💾 جاري تحديث كلمات المراقبة...');
+        }
+
+        function sendMessage() {
+            const phoneNumber = document.getElementById('phone-number').value;
+            const message = document.getElementById('message-text').value;
+            
+            if (!phoneNumber || !message) {
+                alert('يرجى إدخال رقم الهاتف والرسالة');
+                return;
+            }
+            
+            socket.emit('send_whatsapp_message', {
+                phone_number: phoneNumber,
+                message: message
+            });
+            
+            document.getElementById('message-text').value = '';
+        }
+
+        function updateConnectionStatus(status, message) {
+            const statusElement = document.getElementById('connection-status');
+            const disconnectBtn = document.getElementById('disconnect-btn');
+            
+            statusElement.innerHTML = `<i class="fas fa-${getStatusIcon(status)}"></i> ${message}`;
+            statusElement.className = `alert alert-${getStatusClass(status)}`;
+            
+            disconnectBtn.disabled = status !== 'connected';
+        }
+
+        function getStatusIcon(status) {
+            const icons = {
+                'connected': 'check-circle',
+                'disconnected': 'times-circle',
+                'connecting': 'sync-alt',
+                'waiting': 'qrcode'
+            };
+            return icons[status] || 'question-circle';
+        }
+
+        function getStatusClass(status) {
+            const classes = {
+                'connected': 'success',
+                'disconnected': 'danger',
+                'connecting': 'warning',
+                'waiting': 'info'
+            };
+            return classes[status] || 'secondary';
+        }
+
+        function addLog(message) {
+            const logsContainer = document.getElementById('system-logs');
+            const timestamp = new Date().toLocaleTimeString('ar-EG');
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<span class="text-muted">[${timestamp}]</span> ${message}`;
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        function showAlert(alertData) {
+            const alertsContainer = document.getElementById('alerts-container');
+            const alertElement = document.createElement('div');
+            alertElement.className = 'alert-card';
+            alertElement.innerHTML = `
+                <div class="d-flex justify-content-between">
+                    <strong>🚨 ${alertData.keyword}</strong>
+                    <small class="text-muted">${alertData.timestamp}</small>
+                </div>
+                <div class="mt-2">
+                    <strong>المجموعة:</strong> ${alertData.group}<br>
+                    <strong>الرسالة:</strong> ${alertData.message}
+                </div>
+            `;
+            
+            alertsContainer.insertBefore(alertElement, alertsContainer.firstChild);
+        }
+
+        function addSentMessage(data) {
+            const container = document.getElementById('sent-messages');
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message-bubble own';
+            messageElement.innerHTML = `
+                <div class="d-flex justify-content-between">
+                    <small><strong>تم الإرسال</strong></small>
+                    <small class="text-muted">${new Date().toLocaleTimeString('ar-EG')}</small>
+                </div>
+                <div class="mt-1">${data.message || 'تم الإرسال بنجاح'}</div>
+            `;
+            container.appendChild(messageElement);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('system-logs').innerHTML = '';
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('🌐 تم تحميل الواجهة بنجاح');
+            updateConnectionStatus('disconnected', 'غير متصل - يرجى ربط واتساب');
+        });
+    </script>
+</body>
+  </html>
