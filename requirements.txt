@@ -1,0 +1,10 @@
+Flask==2.3.3
+Flask-SocketIO==5.3.6
+selenium==4.15.0
+qrcode==7.4.2
+Pillow==10.1.0
+requests==2.31.0
+python-engineio==4.8.0
+python-socketio==5.10.0
+eventlet==0.33.3
+gunicorn==21.2.0
